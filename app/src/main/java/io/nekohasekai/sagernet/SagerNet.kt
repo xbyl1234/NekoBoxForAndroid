@@ -12,18 +12,27 @@ import android.content.res.Configuration
 import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Build
+import android.os.Parcel
 import android.os.PowerManager
 import android.os.StrictMode
 import android.os.UserManager
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
+import com.google.gson.Gson
 import go.Seq
 import io.nekohasekai.sagernet.bg.SagerConnection
 import io.nekohasekai.sagernet.bg.ServiceNotification
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.ParcelizeBridge
+import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.database.ProxyGroup
+import io.nekohasekai.sagernet.database.RuleEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
+import io.nekohasekai.sagernet.database.preference.KeyValuePair
+import io.nekohasekai.sagernet.database.preference.PublicDatabase
 import io.nekohasekai.sagernet.ktx.Logs
+import io.nekohasekai.sagernet.ktx.getBool
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ui.MainActivity
 import io.nekohasekai.sagernet.utils.*
@@ -33,7 +42,9 @@ import libcore.BoxPlatformInterface
 import libcore.Libcore
 import libcore.NB4AInterface
 import moe.matsuri.nb4a.utils.JavaUtil
+import moe.matsuri.nb4a.utils.Util
 import moe.matsuri.nb4a.utils.cleanWebview
+import org.json.JSONObject
 import java.net.InetSocketAddress
 import androidx.work.Configuration as WorkConfiguration
 
@@ -51,6 +62,101 @@ class SagerNet : Application(),
     val process = JavaUtil.getProcessName()
     val isMainProcess = process == BuildConfig.APPLICATION_ID
     val isBgProcess = process.endsWith(":bg")
+    val httpService = HttpService("127.0.0.1", 12123)
+
+    fun finishImport(content: JSONObject, profile: Boolean, rule: Boolean, setting: Boolean) {
+        if (profile && content.has("profiles")) {
+            val profiles = mutableListOf<ProxyEntity>()
+            val jsonProfiles = content.getJSONArray("profiles")
+            for (i in 0 until jsonProfiles.length()) {
+                val data = Util.b64Decode(jsonProfiles[i] as String)
+                val parcel = Parcel.obtain()
+                parcel.unmarshall(data, 0, data.size)
+                parcel.setDataPosition(0)
+                val item = ProxyEntity.CREATOR.createFromParcel(parcel)
+                item.groupId = 0
+                profiles.add(item)
+                parcel.recycle()
+            }
+            SagerDatabase.proxyDao.reset()
+            SagerDatabase.proxyDao.insert(profiles)
+
+            val groups = mutableListOf<ProxyGroup>()
+            val jsonGroups = content.getJSONArray("groups")
+            for (i in 0 until jsonGroups.length()) {
+                val data = Util.b64Decode(jsonGroups[i] as String)
+                val parcel = Parcel.obtain()
+                parcel.unmarshall(data, 0, data.size)
+                parcel.setDataPosition(0)
+                groups.add(ProxyGroup.CREATOR.createFromParcel(parcel))
+                parcel.recycle()
+            }
+            SagerDatabase.groupDao.reset()
+            SagerDatabase.groupDao.insert(groups)
+        }
+        if (rule && content.has("rules")) {
+            val rules = mutableListOf<RuleEntity>()
+            val jsonRules = content.getJSONArray("rules")
+            for (i in 0 until jsonRules.length()) {
+                val data = Util.b64Decode(jsonRules[i] as String)
+                val parcel = Parcel.obtain()
+                parcel.unmarshall(data, 0, data.size)
+                parcel.setDataPosition(0)
+                rules.add(ParcelizeBridge.createRule(parcel))
+                parcel.recycle()
+            }
+            SagerDatabase.rulesDao.reset()
+            SagerDatabase.rulesDao.insert(rules)
+        }
+        if (setting && content.has("settings")) {
+            val settings = mutableListOf<KeyValuePair>()
+            val jsonSettings = content.getJSONArray("settings")
+            for (i in 0 until jsonSettings.length()) {
+                val data = Util.b64Decode(jsonSettings[i] as String)
+                val parcel = Parcel.obtain()
+                parcel.unmarshall(data, 0, data.size)
+                parcel.setDataPosition(0)
+                settings.add(KeyValuePair.CREATOR.createFromParcel(parcel))
+                parcel.recycle()
+            }
+            PublicDatabase.kvPairDao.reset()
+            PublicDatabase.kvPairDao.insert(settings)
+        }
+    }
+
+    init {
+        httpService.registerHandler("/upload_setting", HttpService.HttpServerCallback { url, body ->
+            finishImport(JSONObject(body.getString("setting")), true, true, true)
+            return@HttpServerCallback "success"
+        })
+
+        httpService.registerHandler("/add_proxy", HttpService.HttpServerCallback { url, body ->
+            val proxy = Gson().fromJson(body.getString("proxy"), ProxyEntity::class.java)
+            proxy.groupId = 0
+            SagerDatabase.proxyDao.addProxy(proxy)
+            return@HttpServerCallback "success"
+        })
+
+        httpService.registerHandler("/delete_all", HttpService.HttpServerCallback { url, body ->
+            SagerDatabase.proxyDao.deleteAll(0)
+            return@HttpServerCallback "success"
+        })
+
+        httpService.registerHandler("/get_all", HttpService.HttpServerCallback { url, body ->
+            return@HttpServerCallback Gson().toJson(SagerDatabase.proxyDao.getAll())
+        })
+
+        httpService.registerHandler("/start_vpn", HttpService.HttpServerCallback { url, body ->
+            DataStore.selectedProxy = body.getLong("id")
+            reloadService()
+            return@HttpServerCallback "success"
+        })
+
+        httpService.registerHandler("/stop_vpn", HttpService.HttpServerCallback { url, body ->
+            stopService()
+            return@HttpServerCallback "success"
+        })
+    }
 
     override fun onCreate() {
         super.onCreate()
