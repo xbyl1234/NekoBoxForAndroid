@@ -34,12 +34,13 @@ public class HttpService extends NanoHTTPD {
             JSONObject json = null;
             session.parseBody(files);
             String body = files.get("postData");
+            Log.i("VpnHttpApi", "recv body :" + body);
             if (body == null) {
                 return null;
             }
             return new JSONObject(body);
         } catch (Throwable e) {
-            Log.e("fake_device", "parseBody error!", e);
+            Log.e("VpnHttpApi", "parseBody error!", e);
             e.printStackTrace();
             return null;
         }
@@ -62,8 +63,8 @@ public class HttpService extends NanoHTTPD {
         try {
             resp = handler.OnHttp(session.getUri(), parseBody(session));
         } catch (Throwable e) {
-            resp = "error";
-            Log.e("fake_device", "OnHttp error!", e);
+            resp = "error: " + e.getMessage();
+            Log.e("VpnHttpApi", "OnHttp error!", e);
             e.printStackTrace();
         }
         return NanoHTTPD.newFixedLengthResponse(resp);
