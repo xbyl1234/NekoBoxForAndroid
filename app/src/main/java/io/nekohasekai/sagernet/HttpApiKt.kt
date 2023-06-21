@@ -1,9 +1,10 @@
 package io.nekohasekai.sagernet
 
 import android.os.Parcel
-import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ParcelizeBridge
 import io.nekohasekai.sagernet.database.ProxyEntity
@@ -14,8 +15,6 @@ import io.nekohasekai.sagernet.database.preference.KeyValuePair
 import io.nekohasekai.sagernet.database.preference.PublicDatabase
 import io.nekohasekai.sagernet.ktx.forEach
 import moe.matsuri.nb4a.utils.Util
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -111,8 +110,8 @@ class HttpApiKt() {
         }
 
         httpService.registerHandler("/upload_setting", HttpService.HttpServerCallback { url, body ->
-            HttpApiKt.finishImport(body.getJSONObject("setting"), true, true, true)
-            return@HttpServerCallback "success"
+            finishImport(body, true, true, true)
+            return@HttpServerCallback null
         })
 
         httpService.registerHandler("/add_proxy", HttpService.HttpServerCallback { url, body ->
@@ -131,18 +130,18 @@ class HttpApiKt() {
                 respItem.put("proxy_name", proxy.displayName())
                 ids.put(respItem)
             }
-            response.put("proxy_ids", ids);
+            response.put("proxy_ids", ids)
             return@HttpServerCallback response.toString()
         })
 
         httpService.registerHandler("/delete_group", HttpService.HttpServerCallback { url, body ->
             SagerDatabase.proxyDao.deleteAll(body.getLong("id"))
-            return@HttpServerCallback "success"
+            return@HttpServerCallback null
         })
 
         httpService.registerHandler("/delete_all", HttpService.HttpServerCallback { url, body ->
             SagerDatabase.proxyDao.reset()
-            return@HttpServerCallback "success"
+            return@HttpServerCallback null
         })
 
         httpService.registerHandler("/get_all", HttpService.HttpServerCallback { url, body ->
@@ -156,12 +155,12 @@ class HttpApiKt() {
         httpService.registerHandler("/start_vpn", HttpService.HttpServerCallback { url, body ->
             DataStore.selectedProxy = body.getLong("id")
             SagerNet.startService()
-            return@HttpServerCallback "success"
+            return@HttpServerCallback null
         })
 
         httpService.registerHandler("/stop_vpn", HttpService.HttpServerCallback { url, body ->
             SagerNet.stopService()
-            return@HttpServerCallback "success"
+            return@HttpServerCallback null
         })
 
         try {

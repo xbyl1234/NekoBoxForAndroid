@@ -22,6 +22,8 @@ public class HttpService extends NanoHTTPD {
         String OnHttp(String url, JSONObject body) throws Throwable;
     }
 
+    final static String SuccessResp = "{}";
+
     Map<String, HttpServerCallback> callback = new HashMap<>();
 
     public HttpService(String ip, int port) {
@@ -62,8 +64,11 @@ public class HttpService extends NanoHTTPD {
         String resp;
         try {
             resp = handler.OnHttp(session.getUri(), parseBody(session));
+            if (resp == null) {
+                resp = SuccessResp;
+            }
         } catch (Throwable e) {
-            resp = "error: " + e.getMessage();
+            resp = "{\"error\":\"" + e.getMessage() + "\"}";
             Log.e("VpnHttpApi", "OnHttp error!", e);
             e.printStackTrace();
         }

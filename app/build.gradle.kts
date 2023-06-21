@@ -24,6 +24,11 @@ android {
         viewBinding = true
     }
     namespace = "io.nekohasekai.sagernet"
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
 }
 
 dependencies {
