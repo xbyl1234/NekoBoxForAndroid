@@ -158,6 +158,12 @@ class HttpApiKt() {
             return@HttpServerCallback null
         })
 
+        httpService.registerHandler("/reload_vpn", HttpService.HttpServerCallback { url, body ->
+            DataStore.selectedProxy = body.getLong("id")
+            SagerNet.reloadService()
+            return@HttpServerCallback null
+        })
+
         httpService.registerHandler("/stop_vpn", HttpService.HttpServerCallback { url, body ->
             SagerNet.stopService()
             return@HttpServerCallback null
